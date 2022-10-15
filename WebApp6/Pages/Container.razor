@@ -1,0 +1,86 @@
+﻿@inject NavigationManager _navigationManager
+@inject AzureStorage _azureStorage
+
+@using System.Web
+
+@page "/container"
+
+@if (isReady)
+{
+    <h3>@containerName</h3>
+    <hr />
+    <table width="100%">
+        <thead>
+            <tr style="border-bottom: 1px solid black;">
+                <th></th>
+                <th>Name</th>
+                <th>Content Type</th>
+                <th>Last Modified</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var blob in blobs)
+            {
+                var contentType = blob.ContentType;
+                <tr style="border-bottom: 1px solid gray;">
+                    <td>
+                        <span class="oi oi-@(contentType.StartsWith("image") ? "image" : "file")"></span>
+                    </td>
+                    <td><a href="@blob.Url" target="_blank">@blob.Name</a></td>
+                    <td>@contentType</td>
+                    <td>@blob.LastModified</td>
+                    <td>
+                        <button class="btn btn-link" @onclick="() => DeleteBlob(blob.Name)">
+                            <span class="oi oi-trash"></span>
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="5">
+                    <label for="file" title="Upload" style="cursor: pointer;">
+                        <span class="oi oi-plus"></span> Add New
+                    </label>
+                    <InputFile id="file" OnChange="UploadBlob" class="position-absolute invisible"></InputFile>
+                </td>
+            </tr>
+        </tfoot>
+    </table>
+}
+
+@code {
+    private bool isReady;
+    private string containerName;
+    private List<BlobInfo> blobs = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var uri = _navigationManager.Uri;
+            var url = HttpUtility.ParseQueryString(new Uri(uri).Query);
+            containerName = HttpUtility.UrlEncode(url["name"]);
+            containerName = HttpUtility.UrlDecode(containerName);
+            GetBlobs();
+        }
+        isReady = true;
+        StateHasChanged();
+    }
+
+    async void GetBlobs() => blobs = await _azureStorage.GetContainerBlobs(containerName);
+
+    void DeleteBlob(string filename)
+    {
+        _azureStorage.DeleteBlob(containerName, filename);
+        GetBlobs();
+    }
+
+    async void UploadBlob(InputFileChangeEventArgs e)
+    {
+        await _azureStorage.UploadBlob(containerName, e.File);
+        GetBlobs();
+    }
+}
